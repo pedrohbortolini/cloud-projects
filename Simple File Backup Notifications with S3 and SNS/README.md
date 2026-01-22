@@ -1,138 +1,30 @@
-# Simple File Backup Notifications with Amazon S3 and SNS
+# Simple File Backup Notifications (S3 + SNS)
+![Architecture Diagram](./diagram/diagram.png)
 
-## Overview
+## 🎯 Overview
 
-This project demonstrates how to build an automated notification system that sends email alerts whenever files are uploaded to an Amazon S3 bucket.
-The solution was implemented in **two ways**:
-
-* **Using AWS Management Console (GUI)**
-* **Using Infrastructure as Code with Terraform**
-
-Both approaches create the same architecture:
-**S3 → SNS → Email notification**
+Automated notification system that sends real-time email alerts whenever files are uploaded to an Amazon S3 bucket. This project demonstrates a complete **Event-Driven Architecture** implemented through the AWS Console and fully automated with **Terraform/OpenTofu**.
 
 ---
 
-## Architecture
+## ❗ Problem & Solution
 
-* **Amazon S3**: Stores backup files
-* **Amazon SNS**: Distributes notifications
-* **Email Subscription**: Receives alerts when new files are uploaded
+**The Problem:** Manual checks for backup success are inefficient and error-prone. Critical data loss is often discovered too late when visibility is lacking.
 
-Whenever an object is created in the S3 bucket, an event notification is triggered and sent to an SNS topic, which then delivers an email notification to subscribed recipients.
+**The Solution:** A serverless, event-driven system where **S3 triggers SNS** to deliver instant notifications, ensuring 100% real-time visibility into backup operations.
 
 ---
 
-## ❗ Problem
+## 🧱 Implementation Using Terraform (IaC) - **Recommended**
 
-Backup operations and file transfers are critical for data protection and compliance.
-However, without real-time visibility, teams often discover missing or failed backups too late, increasing the risk of data loss.
-
-Manually checking S3 buckets is inefficient, error-prone, and does not scale well. Organizations need an automated and reliable way to be notified immediately when backup files are successfully uploaded.
-
----
-
-## Solution
-
-This project implements a **serverless and event-driven notification system** using Amazon S3 and Amazon SNS.
-
-Whenever a file is uploaded to a backup bucket:
-
-1. Amazon S3 detects the event
-2. The event is sent to an SNS topic
-3. SNS delivers an email notification instantly
-
-This ensures real-time visibility into backup operations without the need for manual checks or custom monitoring scripts.
-
----
-
-## Implementation Using AWS GUI (Management Console)
-
-### 1. Create an SNS Topic
-
-* Access **Amazon SNS → Topics**
-* Create a **Standard** topic named:
-
-  ```
-  backup-alerts-gui
-  ```
-* Example ARN:
-
-  ```
-  arn:aws:sns:us-east-1:99999999:backup-alerts-gui
-  ```
-
-### 2. Create an Email Subscription
-
-* Inside the topic, go to **Subscriptions**
-* Create a subscription of type **Email**
-* Enter the email address that will receive notifications
-* Confirm the subscription via the email sent by SNS
-
-### 3. Create an S3 Bucket
-
-* Create a new S3 bucket to store backup files
-* Enable:
-
-  * **Versioning**
-  * **Default Encryption (SSE-S3)**
-
-### 4. Configure SNS Topic Policy
-
-* Update the **Access Policy** of the SNS topic
-* Allow the **S3 service (`s3.amazonaws.com`)** to publish messages to the topic
-* This step is mandatory for S3 event notifications to work
-
-### 5. Configure S3 Event Notifications
-
-* Go to the S3 bucket → **Properties**
-* Open **Event notifications**
-* Create a notification for:
-
-  * Event type: `ObjectCreated`
-  * Destination: SNS topic `backup-alerts-gui`
-
-### 6. Result
-
-From this point on, every file uploaded to the S3 bucket triggers:
-
-```
-S3 → SNS → Email notification
-```
-
-## ⚠️ Important Observations (GUI)
-
-* When modifying the **SNS Topic Policy**, the email subscription **may become unsubscribed automatically**
-* This happened during this project
-* **Solution**:
-
-  * Delete the subscription
-  * Recreate it
-  * Confirm the email again
-
-
----
-
-## 🧱 Implementation Using Terraform (Infrastructure as Code)
-
-This project was also implemented using **Terraform**, fully automating the creation of all AWS resources.
+This approach fully automates the creation of all AWS resources, ensuring a reproducible and version-controlled infrastructure.
 
 ### Resources Created
 
-* SNS Topic
-* SNS Topic Policy (allowing S3 to publish messages)
-* Email Subscription
-* S3 Bucket
-* S3 Bucket Versioning
-* S3 Bucket Encryption
-* S3 Event Notifications
-
-### Key Benefits of Terraform Approach
-
-* Reproducible and consistent infrastructure
-* Easy to deploy in multiple environments
-* Version-controlled infrastructure
-* No manual configuration via console
+* **SNS Topic & Policy**: Configured to allow S3 to publish messages.
+* **Email Subscription**: Automated alert delivery to specified recipients.
+* **S3 Bucket**: Featuring **Versioning**, **SSE-S3 Encryption**, and **Public Access Block**.
+* **Event Notifications**: Automatically linked to the SNS Topic.
 
 ### Workflow
 
@@ -140,32 +32,73 @@ This project was also implemented using **Terraform**, fully automating the crea
 tofu init
 tofu plan
 tofu apply
+
 ```
 
-After applying the Terraform configuration, the behavior is identical to the GUI implementation:
-
-* Uploading a file to S3 triggers an SNS notification
-* An email alert is sent automatically
+*All customizable values (region, emails, bucket names) are managed via `terraform.tfvars` for easy configuration.*
 
 ---
 
-## 📝 Variables Configuration
+## 🎨 Infrastructure as Diagram (IaD)
 
-All customizable values (region, bucket name, environment, tags, email address, etc.) are defined using variables and can be set via:
+### Architecture Automation with Terraform & Python
+
+This project includes a custom Python engine that parses the **Terraform Execution Plan** to generate real-time, faithful architecture diagrams. This ensures that documentation is never outdated.
+
+| Stage | Tool | Action |
+| --- | --- | --- |
+| **Parsing** | `tofu show -json` | Converts binary plan to a readable `plan.json`. |
+| **Intelligence** | Python Script | Maps JSON resources to architectural objects. |
+| **Drawing** | `diagrams` library | Renders the final `.png` file. |
+
+#### Why this "Code-First" approach?
+
+* **Granular Control:** Conditional rules allow icons to appear only if features (like *Encryption* or *Lifecycle*) are active in the plan.
+* **DevOps Alignment:** Documentation lives inside the code and evolves automatically with the infrastructure.
+* **Zero Cost:** A fully open-source and customizable alternative to SaaS tools.
+
+> **Strategic Note:** For large environments, the script is designed to be segmented by **Tags** or **Modules**, avoiding "spaghetti diagrams" and keeping views actionable and clean.
+
+---
+
+## 🛠️ Quick Start (Generate Diagram)
+
+To refresh the architecture diagram based on your current Terraform code:
+
+```bash
+# 1. Setup Environment
+python3 -m venv venv
+source venv/bin/activate
+pip install diagrams
+
+# 2. Export Plan & Run Script
+tofu plan -out=plan.out
+tofu show -json plan.out > plan.json
+python diagram/generate_diagram.py
 
 ```
-terraform.tfvars
-```
 
-This allows easy customization without changing the core code.
+---
+
+## 🖥️ Implementation Using AWS GUI (Manual)
+
+<details>
+<summary>Click to view manual step-by-step instructions</summary>
+
+1. **SNS Topic:** Create a **Standard** topic named `backup-alerts-gui`.
+2. **Subscription:** Create an **Email** subscription and confirm it via your inbox.
+3. **S3 Bucket:** Create a bucket and enable **Versioning** and **Default Encryption (SSE-S3)**.
+4. **Access Policy:** Update the SNS Topic Access Policy to allow `s3.amazonaws.com` to perform the `sns:Publish` action.
+5. **Event Notifications:** Under Bucket Properties, create a notification for `ObjectCreated` pointing to your SNS Topic.
+
+</details>
 
 ---
 
 ## 🏁 Final Result
 
-* Fully serverless
-* Event-driven
-* Real-time notifications
-* Implemented both manually (GUI) and programmatically (Terraform)
+* **100% Serverless** & Event-driven.
+* **Real-time Notifications** for backup verification.
+* **Automated Documentation** that reflects the actual state of the code.
 
-This project demonstrates a common and practical AWS integration pattern that is frequently used in production environments.
+---
